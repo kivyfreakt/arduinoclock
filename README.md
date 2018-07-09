@@ -31,6 +31,6 @@
 
 <a id="chapter-3"></a>
 ## Схема подключения
-
+![СХЕМА](https://github.com/musicfreakt/talk_clock/blob/master/schemes/talk_clock_bb.png)
 
  
