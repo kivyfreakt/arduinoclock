@@ -9,17 +9,17 @@
 
 
 //---------------pins---------------
-const int UP_BTN = 4; // пин кнопки вверх(голос)
-const int DOWN_BTN = 7; // пин кнопки вниз(установка будильника)
-const int SET_BTN = 8; // пин кнопки установить(смена времени)
-const int PHOTORESISTOR_PIN = 14; // А0 пин фоторезистора
-const int LCD_LED_PIN = 11; // пин подсветки дисплея
+#define UP_BTN  4 // пин кнопки вверх(голос)
+#define DOWN_BTN  7 // пин кнопки вниз(установка будильника)
+#define SET_BTN  8 // пин кнопки установить(смена времени)
+#define PHOTORESISTOR_PIN 14 // А0 пин фоторезистора
+#define LCD_LED_PIN  11 // пин подсветки дисплея
 
 //---------------constants---------------
 const int BTN_DELAY = 500; //задержка времени в программе на 500 мс, которая происходит после нажатия на кнопку (самый примитивный метод избежания дребезга контактов)
-const int NUM_TIMES = 6; // количество временных отрезков*
+const byte NUM_TIMES = 6; // количество временных отрезков*
 //* - (годы, месяцы, дни, часы, минуты, секунды)
-const int NUM_ALARM_TIMES = 2;
+const byte NUM_ALARM_TIMES = 2;
 const String DAYS_OF_THE_WEEK[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
 const int DEFAULT_TIME[NUM_TIMES] = {2018, 1, 1, 0, 0, 0};
 const int MAX_TIME[NUM_TIMES] = {3000, 12, 31, 23, 59, 59};
@@ -38,7 +38,7 @@ SoftwareSerial SoundSerial(12, 13);
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 RTC_DS1307 rtc;
 
-//---------------all ---------------
+//---------------all functions---------------
 void say_time(); // озвучка времени
 void alarm(); // функция будильника
 void set_alarm(); // установка будильника
@@ -51,9 +51,9 @@ void print_all(); // вывод всей информации на диспле�
 
 
 void setup() {
-  pinMode(UP_BTN, INPUT);
-  pinMode(DOWN_BTN, INPUT);
-  pinMode(SET_BTN, INPUT);
+  pinMode(UP_BTN, INPUT_PULLUP);
+  pinMode(DOWN_BTN, INPUT_PULLUP);
+  pinMode(SET_BTN, INPUT_PULLUP);
   pinMode(PHOTORESISTOR_PIN, INPUT);
   pinMode(LCD_LED_PIN, OUTPUT);
   analogWrite(LCD_LED_PIN, 255);
@@ -118,12 +118,18 @@ void print_all() {
 
 void button_control() {
   /* обработка 3 кнопок */
+  bool voice_btn = !digitalRead(UP_BTN);
+  bool alarm_btn = !digitalRead(DOWN_BTN);
+  bool settings_btn = !digitalRead(SET_BTN);
+
   lcd.setCursor(0, 1);
-  if (digitalRead(UP_BTN) == HIGH) { // обработка кнопки голоса
+
+  if (voice_btn) { // обработка кнопки голоса
     say_time();
     delay(BTN_DELAY);
   }
-  if (digitalRead(DOWN_BTN) == HIGH) { // обработка кнопки будильника
+
+  if (settings_btn) { // обработка кнопки будильника
     delay(BTN_DELAY);
     if (alarm_flag) { // если будильник включен,
       alarm_flag = false; // то выключить его
@@ -131,10 +137,12 @@ void button_control() {
       set_alarm(); // если нет , то настроить время будильника
     }
   }
-  if (digitalRead(SET_BTN) == HIGH) { // обработка кнопки изменения времени
+
+  if (settings_btn) { // обработка кнопки изменения времени
     delay(BTN_DELAY);
     set_time();
   }
+
 }
 
 void alarm() {
@@ -177,8 +185,12 @@ void set_time() {
     new_time[i] = DEFAULT_TIME[i];
   }
 
-  while (marked < NUM_TIMES) { // пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
-    if (digitalRead(UP_BTN) == HIGH) { // обработка кнопки вверх
+  while (marked < NUM_TIMES) {// пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
+    bool up_btn = !digitalRead(UP_BTN);
+    bool down_btn = !digitalRead(DOWN_BTN);
+    bool set_btn = !digitalRead(SET_BTN);
+
+    if (up_btn) { // обработка кнопки вверх
       if (new_time[marked] < MAX_TIME[marked]) { // если устанавливаемый временной отрезок реален, то
         new_time[marked] = new_time[marked] + 1; // увеличиваем его значение на 1
       } else {
@@ -186,7 +198,7 @@ void set_time() {
       }
       delay(BTN_DELAY);
     }
-    if (digitalRead(DOWN_BTN) == HIGH) { // обработка кнопки вниз
+    if (down_btn) { // обработка кнопки вниз
       if (new_time[marked] > DEFAULT_TIME[marked]) { // если устанавливаемый временной отрезок реален, то
         new_time[marked] = new_time[marked] - 1; // уменьшаем его значение на 1
       } else {
@@ -194,7 +206,7 @@ void set_time() {
       }
       delay(BTN_DELAY);
     }
-    if (digitalRead(SET_BTN) == HIGH) { // обработка кнопки изменить
+    if (set_btn) { // обработка кнопки изменить
       marked++; // при нажатии меняем временной отрезок
       delay(BTN_DELAY);
     }
@@ -213,38 +225,42 @@ void set_alarm() {
   int marked = 0; // временной отрезок, который сейчас изменяется
 
   while (marked < NUM_ALARM_TIMES) { // пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
-    if (digitalRead(UP_BTN) == HIGH) { // обработка кнопки вверх
-      if (alarm_time[marked] < MAX_TIME[marked+3]) { // если устанавливаемый временной отрезок реален, то
+    bool up_btn = !digitalRead(UP_BTN);
+    bool down_btn = !digitalRead(DOWN_BTN);
+    bool set_btn = !digitalRead(SET_BTN);
+    
+    if (up_btn) { // обработка кнопки вверх
+      if (alarm_time[marked] < MAX_TIME[marked + 3]) { // если устанавливаемый временной отрезок реален, то
         alarm_time[marked] = alarm_time[marked] + 1; // увеличиваем его значение на 1
       } else {
-        alarm_time[marked] = DEFAULT_TIME[marked+3];
+        alarm_time[marked] = DEFAULT_TIME[marked + 3];
       }
       delay(BTN_DELAY);
     }
-    if (digitalRead(DOWN_BTN) == HIGH) { // обработка кнопки вниз
-      if (alarm_time[marked] > DEFAULT_TIME[marked+3]) { // если устанавливаемый временной отрезок реален, то
+    if (down_btn) { // обработка кнопки вниз
+      if (alarm_time[marked] > DEFAULT_TIME[marked + 3]) { // если устанавливаемый временной отрезок реален, то
         alarm_time[marked] = alarm_time[marked] - 1; // уменьшаем его значение на 1
       }      else {
-        alarm_time[marked] = MAX_TIME[marked+3];
+        alarm_time[marked] = MAX_TIME[marked + 3];
       }
       delay(BTN_DELAY);
     }
-    if (digitalRead(SET_BTN) == HIGH) { // обработка кнопки изменить
+    if (set_btn) { // обработка кнопки изменить
       marked++; // при нажатии меняем временной отрезок
       delay(BTN_DELAY);
     }
-      lcd.clear();
-  switch (marked) {
-    case 0:
-      lcd.print("set hour");
-      break;
-    case 1:
-      lcd.print("set minute");
-      break;
-  }
-  lcd.setCursor(0, 1);
-  lcd.print(alarm_time[marked]);
-  delay(100);
+    lcd.clear();
+    switch (marked) {
+      case 0:
+        lcd.print("set hour");
+        break;
+      case 1:
+        lcd.print("set minute");
+        break;
+    }
+    lcd.setCursor(0, 1);
+    lcd.print(alarm_time[marked]);
+    delay(100);
   }
 }
 
