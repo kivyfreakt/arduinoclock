@@ -7,13 +7,12 @@
 #include "SoftwareSerial.h"
 #include <mp3TF.h>
 
-
 //---------------pins---------------
 #define UP_BTN  4 // пин кнопки вверх(голос)
 #define DOWN_BTN  7 // пин кнопки вниз(установка будильника)
 #define SET_BTN  8 // пин кнопки установить(смена времени)
+#define LCD_LED_PIN 11 // пин подсветки дисплея
 #define PHOTORESISTOR_PIN 14 // А0 пин фоторезистора
-#define LCD_LED_PIN  11 // пин подсветки дисплея
 
 //---------------constants---------------
 const int BTN_DELAY = 500; //задержка времени в программе на 500 мс, которая происходит после нажатия на кнопку (самый примитивный метод избежания дребезга контактов)
@@ -32,6 +31,7 @@ enum td {YEAR, MONTH, DAY, HOUR, MINUTE, SECOND}; // перечисление в
 bool alarm_flag = false; // флаг для проверки будильника (true - будильник включен, false - будилькик выключен)
 int alarm_time[NUM_ALARM_TIMES] = {0, 0}; // время будильника
 int bright;
+unsigned long timer_1;
 
 mp3TF mp3 = mp3TF ();
 SoftwareSerial SoundSerial(12, 13);
@@ -49,14 +49,15 @@ void print_format(int value); // изменение значений даты/в
 void button_control(); // обработка кнопок
 void print_all(); // вывод всей информации на дисплей
 
-
 void setup() {
+ 
   pinMode(UP_BTN, INPUT_PULLUP);
   pinMode(DOWN_BTN, INPUT_PULLUP);
   pinMode(SET_BTN, INPUT_PULLUP);
   pinMode(PHOTORESISTOR_PIN, INPUT);
   pinMode(LCD_LED_PIN, OUTPUT);
   analogWrite(LCD_LED_PIN, 255);
+
   // инициализация LCD
   lcd.init();
   lcd.backlight();
@@ -64,33 +65,33 @@ void setup() {
   // инициализация RTC
   rtc.begin();
   rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  
   // инициализация MP3
   SoundSerial.begin(9600);
   mp3.init(&SoundSerial); // включаем передачу данных с DFPlayer mini mp3
   delay(2);
   mp3.volumeSet(30);// устанавливаем громкость от 0 до 30
   delay(2);
+
 }
 
 void loop() {
-  if (millis() % 1000 == 0) { // если прошла одна секунда
+  if (millis() - timer_1 > 500) { // если прошла одна секунда
+    timer_1 = millis();
     print_all(); // выводим всю информацию на экран
-    delay(1);
   }
 
   DateTime now = rtc.now();
-  if (alarm_flag) { // если будильник включен
-    if (now.second() == 0) { // если секунды равны 0
-      if (alarm_time[1] == now.minute()) { // если минуты совпадают
-        if (alarm_time[0] == now.hour()) { // если совпадают часы
-          alarm();
-        }
-      }
-    }
+  if (alarm_flag && now.second() == 0 && alarm_time[1] == now.minute() && alarm_time[0] == now.hour()) { // если время совпадает
+    alarm();
   }
 
+  if (now.second() == 0 && now.minute() == 0) {
+    say_time();
+  }
   set_lcd_led(); // изменяем яркость дисплея
   button_control(); // передаем управление кнопкам
+
 }
 
 
@@ -129,7 +130,7 @@ void button_control() {
     delay(BTN_DELAY);
   }
 
-  if (settings_btn) { // обработка кнопки будильника
+  if (alarm_btn) { // обработка кнопки будильника
     delay(BTN_DELAY);
     if (alarm_flag) { // если будильник включен,
       alarm_flag = false; // то выключить его
@@ -147,9 +148,8 @@ void button_control() {
 
 void alarm() {
   /*функция срабатывания будильника*/
-  while (digitalRead(SET_BTN) == LOW) { // пока какая-либо кнопка не нажата
-    mp3.playTrackPhisical(1);
-  }
+  alarm_flag = false;
+  mp3.playTrackPhisical(84);
 
 }
 
@@ -157,10 +157,13 @@ void say_time() {
   /*озвучивание текущего времени*/
   DateTime now = rtc.now();
 
-  mp3.playTrackPhisical(now.hour() + 60);
-  delay(1150);
-  mp3.playTrackPhisical(now.minute() - 1);
+  mp3.playTrackPhisical(now.hour() + 1);
+  delay(1500);
+  if (now.minute() != 0) {
+    mp3.playTrackPhisical(now.minute() + 24);
+  }
 }
+
 
 void print_format(int value) {
   /* в библиотеке RTClib часы,минуты,секунды... ,состоящие из
@@ -174,14 +177,15 @@ void print_format(int value) {
   lcd.print(value); // выводим значение
 }
 
+
 void set_time() {
   /* изменение текущего времени на другое
      управление происходит  кнопками
   */
   int new_time[6]; // массив с новыми временными промежутками
-  int marked = 0; // временной отрезок, который сейчас изменяется
+  byte marked = 0; // временной отрезок, который сейчас изменяется
 
-  for (int i = 0; i < NUM_TIMES ; i++) {
+  for (byte i = 0; i < NUM_TIMES ; i++) {
     new_time[i] = DEFAULT_TIME[i];
   }
 
@@ -189,6 +193,9 @@ void set_time() {
     bool up_btn = !digitalRead(UP_BTN);
     bool down_btn = !digitalRead(DOWN_BTN);
     bool set_btn = !digitalRead(SET_BTN);
+
+    mark_time(marked, new_time);
+    delay(100);
 
     if (up_btn) { // обработка кнопки вверх
       if (new_time[marked] < MAX_TIME[marked]) { // если устанавливаемый временной отрезок реален, то
@@ -210,11 +217,11 @@ void set_time() {
       marked++; // при нажатии меняем временной отрезок
       delay(BTN_DELAY);
     }
-    mark_time(marked, new_time);
-    delay(100);
+
   }
 
   rtc.adjust(DateTime(new_time[YEAR], new_time[MONTH], new_time[DAY], new_time[HOUR], new_time[MINUTE], new_time[SECOND]));// устанавливаем время
+  lcd.clear();
 }
 
 void set_alarm() {
@@ -222,13 +229,26 @@ void set_alarm() {
      управление происходит кнопками
   */
   alarm_flag = true;
-  int marked = 0; // временной отрезок, который сейчас изменяется
+  byte marked = 0; // временной отрезок, который сейчас изменяется
 
   while (marked < NUM_ALARM_TIMES) { // пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
     bool up_btn = !digitalRead(UP_BTN);
     bool down_btn = !digitalRead(DOWN_BTN);
     bool set_btn = !digitalRead(SET_BTN);
-    
+
+    lcd.clear();
+    switch (marked) {
+      case 0:
+        lcd.print("set hour");
+        break;
+      case 1:
+        lcd.print("set minute");
+        break;
+    }
+    lcd.setCursor(0, 1);
+    lcd.print(alarm_time[marked]);
+    delay(100);
+
     if (up_btn) { // обработка кнопки вверх
       if (alarm_time[marked] < MAX_TIME[marked + 3]) { // если устанавливаемый временной отрезок реален, то
         alarm_time[marked] = alarm_time[marked] + 1; // увеличиваем его значение на 1
@@ -249,19 +269,9 @@ void set_alarm() {
       marked++; // при нажатии меняем временной отрезок
       delay(BTN_DELAY);
     }
-    lcd.clear();
-    switch (marked) {
-      case 0:
-        lcd.print("set hour");
-        break;
-      case 1:
-        lcd.print("set minute");
-        break;
-    }
-    lcd.setCursor(0, 1);
-    lcd.print(alarm_time[marked]);
-    delay(100);
+
   }
+  lcd.clear();
 }
 
 void mark_time(int marked , int arr[]) {
@@ -297,7 +307,7 @@ void set_lcd_led() {
   /* установка яркости подсветки дисплея,
      исходя из значения, полученного с фоторезистора
   */
-  bright = map(analogRead(PHOTORESISTOR_PIN), 320, 1024, 0, 5); // устанавливаем яркость дисплея
+  bright = map(analogRead(PHOTORESISTOR_PIN), 320, 1024, 0, 5); // переводим полученные значения с фоторезистора в диапазон от 0 до 5
   if (bright < 1) { // если яркость меньше чем 1, то
     bright = 1; // устанавливаем значение на 1
   }
