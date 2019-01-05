@@ -1,4 +1,7 @@
+
 //---------------libs---------------
+#include <Time.h>
+#include <TimeLib.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -107,11 +110,7 @@ const char *bigChars[][2] = {
 
 
 //---------------vars---------------
-
-byte time_hour = atoi(&TIME[0]);
-byte time_min   = atoi(&TIME[3]);
-byte previous_min = time_min;
-byte time_sec  = atoi(&TIME[6]);
+byte previous_min = minute();
 
 enum scr{TIME_SCREEN, DATE_SCREEN, ALARM_SCREEN};
 byte screen = TIME_SCREEN;
@@ -138,6 +137,7 @@ void setup()
     lcd.createChar(i+1, custom[i]);
   }
   lcd.backlight();
+  get_time();
   writeBigString("101", 0, 0);
   tone(BUZZER_PIN, 2349 , 100);
   delay(1000);
@@ -146,17 +146,12 @@ void setup()
 
 
 void loop(){
-  if ( (millis() - every_second_timer) > 1000 ) {
-    update_time();
-    every_second_timer = millis();
-  }
-
-  if (alarm_flag && time_sec == 0 && alarm_time[1] == time_min && alarm_time[0] == time_hour) { // если время совпадает
+  if (alarm_flag && second() == 0 && alarm_time[1] == minute() && alarm_time[0] == hour()) { // если время совпадает
     alarm();
     alarm_flag = false;
   }
 
-  if (time_sec == 0 && time_min == 0) {
+  if (second() == 0 && minute() == 0) {
     tone(BUZZER_PIN, 1000);
     delay(200);
     noTone(BUZZER_PIN);
@@ -165,10 +160,10 @@ void loop(){
     noTone(BUZZER_PIN);
   }
 
-  if(time_min != previous_min){
+  if(minute() != previous_min){
     screen = TIME_SCREEN;
     update_flag = true;
-    previous_min = time_min;
+    previous_min = minute();
   }
 
   if(update_flag or screen != previous_screen){
@@ -178,30 +173,6 @@ void loop(){
   }
   set_lcd_led();
   button_listen();
-}
-
-
-void update_time()
-{
-  unsigned long setClockcurrentMillis = millis();
-  unsigned long setClockelapsedMillis = (setClockcurrentMillis - setClockpreviousMillis);
-  while ( setClockelapsedMillis > 999 )
-  {
-    time_sec++;
-    if ( time_sec > 59 )  {
-      time_min++;
-      time_sec = 0;
-    }
-    if ( time_min > 59 )  {
-      time_hour++;
-      time_min = 0;
-    }
-    if ( time_hour > 23 ) {
-      time_hour = 0;
-    }
-    setClockelapsedMillis -= 1000;
-  }
-  setClockpreviousMillis = setClockcurrentMillis - setClockelapsedMillis;
 }
 
 void show_screen(){
@@ -221,15 +192,14 @@ void show_screen(){
 void time_screen() {
   lcd.clear();
   char hour_str[3], min_str[3];
-  sprintf(hour_str, "%02d", time_hour);
-  sprintf(min_str, "%02d", time_min);
+  sprintf(hour_str, "%02d", hour());
+  sprintf(min_str, "%02d", minute());
   writeBigString(hour_str, 1, 0);
   writeBigString(min_str, 9, 0);
 }
 
 void date_screen(){
   lcd.clear();
-  lcd.print("test");
 }
 
 void alarm_screen(){
@@ -319,10 +289,9 @@ void set_time() {
     }
 
   }
-  time_hour = new_time[0];
-  time_min  = new_time[1];
-  previous_min = time_min;
-  time_sec = 0;
+
+  setTime(new_time[0], new_time[1], 0, day(), month(), year());
+  previous_min = new_time[1];
   lcd.clear();
   update_flag = true;
 }
@@ -400,6 +369,21 @@ void mark_time(int marked , int arr[]) {
   lcd.setCursor(0, 1);
   lcd.print(arr[marked]);
   lcd.print("   ");
+}
+
+void get_time(){
+  const char *monthName[12] = {
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+  };
+  char Month[4];
+  short Hour, Min, Sec, Day, Year, month_index;
+  sscanf(__TIME__, "%d:%d:%d", &Hour, &Min, &Sec);
+  sscanf(__DATE__, "%s %d %d", Month, &Day, &Year);
+  for (month_index = 0; month_index < 12; month_index++) {
+    if (strcmp(Month, monthName[month_index]) == 0) break;
+  }
+  setTime(Hour, Min, Sec, Day, month_index, Year);
 }
 
 
