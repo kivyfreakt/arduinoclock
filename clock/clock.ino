@@ -15,12 +15,11 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 #define LCD_LED_PIN 3 // пин подсветки дисплея
 
 //---------------constants---------------
-const char TIME[] = __TIME__;
-const byte NUM_TIMES = 2;
-const byte DEFAULT_TIME[NUM_TIMES] = {0, 0};
-const byte MAX_TIME[NUM_TIMES] = {23, 59};
+const byte NUM_TIMES = 5;
+const byte ANUM_TIMES = 2;
+const byte DEFAULT_TIME[NUM_TIMES] = {2019, 0, 0, 0, 0};
+const byte MAX_TIME[NUM_TIMES] = {3000, 12, 31, 23, 59};
 const byte NUM_SCREENS = 3;
-
 //---------------lcd custom chars---------------
 
 // Eight programmable character definitions
@@ -112,6 +111,7 @@ const char *bigChars[][2] = {
 //---------------vars---------------
 byte previous_min = minute();
 
+enum tm{YEAR, MONTH, DAY, HOUR, MINUTE};
 enum scr{TIME_SCREEN, DATE_SCREEN, ALARM_SCREEN};
 byte screen = TIME_SCREEN;
 byte previous_screen = screen;
@@ -191,7 +191,7 @@ void show_screen(){
 
 void time_screen() {
   lcd.clear();
-  char hour_str[3], min_str[3];
+  char hour_str[2], min_str[2];
   sprintf(hour_str, "%02d", hour());
   sprintf(min_str, "%02d", minute());
   writeBigString(hour_str, 1, 0);
@@ -200,18 +200,23 @@ void time_screen() {
 
 void date_screen(){
   lcd.clear();
+  char day_str[2];
+  sprintf(day_str, "%02d", day());
+  writeBigString(day_str, 0, 0);
+  lcd.setCursor(7, 0);
+  lcd.print(monthStr(month()));
 }
 
 void alarm_screen(){
   lcd.clear();
   if (alarm_flag){
-    char hour_str[3], min_str[3];
+    char hour_str[2], min_str[2];
     sprintf(hour_str, "%02d", alarm_time[0]);
     sprintf(min_str, "%02d", alarm_time[1]);
     writeBigString(hour_str, 1, 0);
     writeBigString(min_str, 9, 0);
   }else{
-    writeBigString("OFF", 0, 0);
+    writeBigString("OFF", 4, 0);
   }
 }
 
@@ -252,7 +257,7 @@ void set_time() {
      управление происходит  кнопками
   */
   lcd.clear();
-  int new_time[2]; // массив с новыми временными промежутками
+  int new_time[NUM_TIMES]; // массив с новыми временными промежутками
   byte marked = 0; // временной отрезок, который сейчас изменяется
 
   for (byte i = 0; i < NUM_TIMES ; i++) {
@@ -290,11 +295,44 @@ void set_time() {
 
   }
 
-  setTime(new_time[0], new_time[1], 0, day(), month(), year());
-  previous_min = new_time[1];
+  setTime(new_time[3], new_time[4], 0, new_time[2], new_time[1], new_time[0]);
+  previous_min = minute();
   lcd.clear();
   update_flag = true;
 }
+
+void mark_time(int marked , int arr[]) {
+  /* отображение на экране временного промежутка, который был выбран,
+     и его значение
+  */
+
+  switch (marked) {
+    case YEAR:
+      lcd.setCursor(0, 0);
+      lcd.print("set year");
+      break;
+    case MONTH:
+      lcd.setCursor(0, 0);
+      lcd.print("set month");
+      break;
+    case DAY:
+      lcd.setCursor(0, 0);
+      lcd.print("set day");
+      break;
+    case HOUR:
+      lcd.setCursor(0, 0);
+      lcd.print("set hour");
+      break;
+    case MINUTE:
+      lcd.setCursor(0, 0);
+      lcd.print("set minute");
+      break;
+  }
+  lcd.setCursor(0, 1);
+  lcd.print(arr[marked]);
+  lcd.print("   ");
+}
+
 
 
 
@@ -302,31 +340,44 @@ void set_alarm() {
   /* установка будильника на выбранное время
      управление происходит кнопками
   */
-  lcd.clear();
   alarm_flag = true;
+  update_flag = true;
   byte marked = 0; // временной отрезок, который сейчас изменяется
 
-  while (marked < NUM_TIMES) { // пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
+  lcd.clear();
+  while (marked < ANUM_TIMES) { // пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
     bool up_btn = !digitalRead(UP_BTN);
     bool down_btn = !digitalRead(DOWN_BTN);
     bool set_btn = !digitalRead(SET_BTN);
 
-    mark_time(marked, alarm_time);
+    switch (marked) {
+      case 0:
+        lcd.setCursor(0, 0);
+        lcd.print("set hour");
+        break;
+      case 1:
+        lcd.setCursor(0, 0);
+        lcd.print("set minute");
+        break;
+    }
+    lcd.setCursor(0, 1);
+    lcd.print(alarm_time[marked]);
+    lcd.print("   ");
     delay(100);
 
     if (up_btn) { // обработка кнопки вверх
-      if (alarm_time[marked] < MAX_TIME[marked]) { // если устанавливаемый временной отрезок реален, то
+      if (alarm_time[marked] < MAX_TIME[marked + 3]) { // если устанавливаемый временной отрезок реален, то
         alarm_time[marked] = alarm_time[marked] + 1; // увеличиваем его значение на 1
       } else {
-        alarm_time[marked] = DEFAULT_TIME[marked];
+        alarm_time[marked] = DEFAULT_TIME[marked + 3];
       }
       delay(500);
     }
     if (down_btn) { // обработка кнопки вниз
-      if (alarm_time[marked] > DEFAULT_TIME[marked]) { // если устанавливаемый временной отрезок реален, то
+      if (alarm_time[marked] > DEFAULT_TIME[marked + 3]) { // если устанавливаемый временной отрезок реален, то
         alarm_time[marked] = alarm_time[marked] - 1; // уменьшаем его значение на 1
       }      else {
-        alarm_time[marked] = MAX_TIME[marked];
+        alarm_time[marked] = MAX_TIME[marked + 3];
       }
       delay(500);
     }
@@ -337,7 +388,6 @@ void set_alarm() {
 
   }
   lcd.clear();
-  update_flag = true;
 }
 
 void alarm() {
@@ -350,26 +400,6 @@ void alarm() {
   noTone(BUZZER_PIN);
 }
 
-
-void mark_time(int marked , int arr[]) {
-  /* отображение на экране временного промежутка, который был выбран,
-     и его значение
-  */
-
-  switch (marked) {
-    case 0:
-      lcd.setCursor(0, 0);
-      lcd.print("set hour");
-      break;
-    case 1:
-      lcd.setCursor(0, 0);
-      lcd.print("set minute");
-      break;
-  }
-  lcd.setCursor(0, 1);
-  lcd.print(arr[marked]);
-  lcd.print("   ");
-}
 
 void get_time(){
   const char *monthName[12] = {
