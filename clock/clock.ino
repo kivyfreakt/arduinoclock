@@ -7,12 +7,12 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 //---------------pins---------------
-#define PHOTORESISTOR_PIN 14 // А0 пин фоторезистора
-#define BUZZER_PIN  6 // пин пищалки
-#define UP_BTN  5 // пин кнопки вверх(голос)
-#define DOWN_BTN  4 // пин кнопки вниз(установка будильника)
-#define SET_BTN  2 // пин кнопки установить(смена времени)
-#define LCD_LED_PIN 3 // пин подсветки дисплея
+#define PHOTORESISTOR_PIN 14
+#define BUZZER_PIN  6
+#define UP_BTN  5 // screen changer button (up)
+#define DOWN_BTN  4 // alarm button (down)
+#define SET_BTN  2 // time setting button(set)
+#define LCD_LED_PIN 3 // pin of display backlight
 
 //---------------constants---------------
 const byte NUM_TIMES = 5;
@@ -109,36 +109,37 @@ const char *bigChars[][2] = {
 
 
 //---------------vars---------------
-byte previous_min = minute();
-
 enum tm{YEAR, MONTH, DAY, HOUR, MINUTE};
 enum scr{TIME_SCREEN, DATE_SCREEN, ALARM_SCREEN};
 byte screen = TIME_SCREEN;
 byte previous_screen = screen;
+byte previous_min = minute();
 
-bool update_flag = true;
-bool alarm_flag = false; // флаг для проверки будильника (true - будильник включен, false - будилькик выключен)
-int alarm_time[NUM_TIMES] = {0, 0}; // время будильника
-
-unsigned long setClockpreviousMillis;
-unsigned long every_second_timer = 0;
+bool update_flag = true; // flag to change screen if something happens
+bool alarm_flag = false; // flag to check the alarm (true <-> alarm on, false <-> alarm off)
+int alarm_time[NUM_TIMES] = {0, 0}; // alarm time
 
 void setup()
 {
+  
   pinMode(UP_BTN, INPUT_PULLUP);
   pinMode(DOWN_BTN, INPUT_PULLUP);
   pinMode(SET_BTN, INPUT_PULLUP);
   pinMode(PHOTORESISTOR_PIN, INPUT);
   pinMode(LCD_LED_PIN, OUTPUT);
   pinMode(BUZZER_PIN, OUTPUT);
-  analogWrite(LCD_LED_PIN, 255);
+  analogWrite(LCD_LED_PIN, 255); // set full backlight power
+
+  // lcd screen initialisation
   lcd.init();
   for (int i = 0; i < 8; i++){
-    lcd.createChar(i+1, custom[i]);
+    lcd.createChar(i+1, custom[i]); // create custom chars
   }
   lcd.backlight();
-  get_time();
-  writeBigString("101", 0, 0);
+  
+  get_time(); // get the time and date of firmware download
+  
+  writeBigString("HELLO!", 0, 0);
   tone(BUZZER_PIN, 2349 , 100);
   delay(1000);
   writeBigString("     ", 0, 0);
@@ -146,7 +147,7 @@ void setup()
 
 
 void loop(){
-  if (alarm_flag && second() == 0 && alarm_time[1] == minute() && alarm_time[0] == hour()) { // если время совпадает
+  if (alarm_flag && second() == 0 && alarm_time[1] == minute() && alarm_time[0] == hour()) {
     alarm();
     alarm_flag = false;
   }
@@ -159,7 +160,7 @@ void loop(){
     delay(200);
     noTone(BUZZER_PIN);
   }
-
+  
   if(minute() != previous_min){
     screen = TIME_SCREEN;
     update_flag = true;
@@ -222,12 +223,12 @@ void alarm_screen(){
 
 
 void button_listen() {
-  /* обработка кнопок */
+  /* button processing */
   bool screen_btn = !digitalRead(UP_BTN);
   bool alarm_btn = !digitalRead(DOWN_BTN);
   bool settings_btn = !digitalRead(SET_BTN);
 
-  if (screen_btn) {
+  if (screen_btn) { // processing the screenchanger button
     delay(500);
     if (screen < NUM_SCREENS - 1){
       screen++;
@@ -236,16 +237,16 @@ void button_listen() {
     }
   }
 
-  if (alarm_btn) { // обработка кнопки будильника
+  if (alarm_btn) { // processing the alarm button
     delay(500);
-    if (alarm_flag) { // если будильник включен,
-      alarm_flag = false; // то выключить его
+    if (alarm_flag) {
+      alarm_flag = false;
     } else {
-      set_alarm(); // если нет , то настроить время будильника
+      set_alarm();
     }
   }
 
-  if (settings_btn) { // обработка кнопки изменения времени
+  if (settings_btn) { // processing the time change button
     delay(500);
     set_time();
   }
@@ -253,18 +254,16 @@ void button_listen() {
 }
 
 void set_time() {
-  /* изменение текущего времени на другое
-     управление происходит  кнопками
-  */
+  /* change the current time to another one */
   lcd.clear();
-  int new_time[NUM_TIMES]; // массив с новыми временными промежутками
-  byte marked = 0; // временной отрезок, который сейчас изменяется
+  int new_time[NUM_TIMES]; // array with new time intervals
+  byte marked = 0; // time interval, which is now changing
 
   for (byte i = 0; i < NUM_TIMES ; i++) {
     new_time[i] = DEFAULT_TIME[i];
   }
 
-  while (marked < NUM_TIMES) {// пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
+  while (marked < NUM_TIMES) {// while the marked time interval is less than the number of time intervals, process the buttons
     bool up_btn = !digitalRead(UP_BTN);
     bool down_btn = !digitalRead(DOWN_BTN);
     bool set_btn = !digitalRead(SET_BTN);
@@ -272,38 +271,38 @@ void set_time() {
     mark_time(marked, new_time);
     delay(100);
 
-    if (up_btn) { // обработка кнопки вверх
-      if (new_time[marked] < MAX_TIME[marked]) { // если устанавливаемый временной отрезок реален, то
-        new_time[marked] = new_time[marked] + 1; // увеличиваем его значение на 1
+    if (up_btn) { // processing the up button
+      if (new_time[marked] < MAX_TIME[marked]) { // if the set time interval is real, then
+        new_time[marked] = new_time[marked] + 1; // increase its value by 1
       } else {
         new_time[marked] = DEFAULT_TIME[marked];
       }
       delay(500);
     }
-    if (down_btn) { // обработка кнопки вниз
-      if (new_time[marked] > DEFAULT_TIME[marked]) { // если устанавливаемый временной отрезок реален, то
-        new_time[marked] = new_time[marked] - 1; // уменьшаем его значение на 1
+    if (down_btn) { // processing the down button
+      if (new_time[marked] > DEFAULT_TIME[marked]) { // if the set time interval is real, then
+        new_time[marked] = new_time[marked] - 1; // decrease its value by 1
       } else {
         new_time[marked] = MAX_TIME[marked];
       }
       delay(500);
     }
-    if (set_btn) { // обработка кнопки изменить
-      marked++; // при нажатии меняем временной отрезок
+    if (set_btn) { // processing the set button
+      marked++; // change the time period
       delay(500);
     }
 
   }
 
-  setTime(new_time[3], new_time[4], 0, new_time[2], new_time[1], new_time[0]);
+  setTime(new_time[3], new_time[4], 0, new_time[2], new_time[1], new_time[0]); // set new time
   previous_min = minute();
   lcd.clear();
   update_flag = true;
 }
 
 void mark_time(int marked , int arr[]) {
-  /* отображение на экране временного промежутка, который был выбран,
-     и его значение
+  /* display on the screen of the time interval that was selected
+     and its value
   */
 
   switch (marked) {
@@ -337,15 +336,13 @@ void mark_time(int marked , int arr[]) {
 
 
 void set_alarm() {
-  /* установка будильника на выбранное время
-     управление происходит кнопками
-  */
+  /* set the alarm for the selected time */
   alarm_flag = true;
   update_flag = true;
-  byte marked = 0; // временной отрезок, который сейчас изменяется
+  byte marked = 0; // time interval, which is now changing
 
   lcd.clear();
-  while (marked < ANUM_TIMES) { // пока отмеченное время меньше количества временных отрезков , обрабатываем кнопки
+  while (marked < ANUM_TIMES) { // while the marked time interval is less than the number of time intervals, process the buttons
     bool up_btn = !digitalRead(UP_BTN);
     bool down_btn = !digitalRead(DOWN_BTN);
     bool set_btn = !digitalRead(SET_BTN);
@@ -365,24 +362,24 @@ void set_alarm() {
     lcd.print("   ");
     delay(100);
 
-    if (up_btn) { // обработка кнопки вверх
-      if (alarm_time[marked] < MAX_TIME[marked + 3]) { // если устанавливаемый временной отрезок реален, то
-        alarm_time[marked] = alarm_time[marked] + 1; // увеличиваем его значение на 1
+    if (up_btn) { // processing the up button
+      if (alarm_time[marked] < MAX_TIME[marked + 3]) {// if the set time interval is real, then
+        alarm_time[marked] = alarm_time[marked] + 1; // increase its value by 1
       } else {
         alarm_time[marked] = DEFAULT_TIME[marked + 3];
       }
       delay(500);
     }
-    if (down_btn) { // обработка кнопки вниз
-      if (alarm_time[marked] > DEFAULT_TIME[marked + 3]) { // если устанавливаемый временной отрезок реален, то
-        alarm_time[marked] = alarm_time[marked] - 1; // уменьшаем его значение на 1
+    if (down_btn) { // processing the down button
+      if (alarm_time[marked] > DEFAULT_TIME[marked + 3]) { // if the set time interval is real, then
+        alarm_time[marked] = alarm_time[marked] - 1; // increase its value by 1
       }      else {
         alarm_time[marked] = MAX_TIME[marked + 3];
       }
       delay(500);
     }
-    if (set_btn) { // обработка кнопки изменить
-      marked++; // при нажатии меняем временной отрезок
+    if (set_btn) { //processing the set button
+      marked++; // change the time period
       delay(500);
     }
 
@@ -391,7 +388,6 @@ void set_alarm() {
 }
 
 void alarm() {
-  /*функция срабатывания будильника*/
   tone(BUZZER_PIN, 1000);
   delay(200);
   noTone(BUZZER_PIN);
@@ -402,6 +398,7 @@ void alarm() {
 
 
 void get_time(){
+  /* get the time of firmware download and set it */
   const char *monthName[12] = {
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
@@ -416,20 +413,18 @@ void get_time(){
   setTime(Hour, Min, Sec, Day, month_index, Year);
 }
 
-
 void set_lcd_led() {
-  /* установка яркости подсветки дисплея,
-     исходя из значения, полученного с фоторезистора
-  */
-  int bright = map(analogRead(PHOTORESISTOR_PIN), 320, 1024, 0, 5); // переводим полученные значения с фоторезистора в диапазон от 0 до 5
-  if (bright < 1) { // если яркость меньше чем 1, то
-    bright = 1; // устанавливаем значение на 1
+  /* set the backlight brightness */
+  int bright = map(analogRead(PHOTORESISTOR_PIN), 320, 1024, 0, 5); // translate the obtained values from the photoresistor into the range from 0 to 5
+  if (bright < 1) {
+    bright = 1;
   }
-  analogWrite(LCD_LED_PIN, bright * 51); // устанавливаем яркость дисплея
+  analogWrite(LCD_LED_PIN, bright * 51); // set the display brightness
 }
 
 
 int writeBigChar(char ch, int x, int y) {
+  /* write chars on lcd with big font */
   const char *(*blocks)[2] = NULL; // Pointer to an array of two strings (character pointers)
   if (ch < ' ' || ch > '_') // If outside our table range, do nothing
   return 0;
@@ -449,6 +444,7 @@ int writeBigChar(char ch, int x, int y) {
 
 
 void writeBigString(char *str, int x, int y) {
+  /* write strings on lcd with big font */
   char c;
   while ((c = *str++))
   x += writeBigChar(c, x, y);
