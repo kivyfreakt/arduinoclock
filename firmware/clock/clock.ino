@@ -2,6 +2,7 @@
 //---------------libs---------------
 #include <Time.h>
 #include <TimeLib.h>
+#include <EEPROM.h>
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -121,7 +122,7 @@ byte previous_min = minute();
 
 bool update_flag = true; // flag to change screen if something happens
 bool alarm_flag = false; // flag to check the alarm (true <-> alarm on, false <-> alarm off)
-int alarm_time[NUM_TIMES] = {0, 0}; // alarm time
+int alarm_time[NUM_TIMES]; // alarm time
 
 void setup()
 {
@@ -142,6 +143,12 @@ void setup()
   lcd.backlight();
   
   get_time(); // get the time and date of firmware download
+
+  alarm_time[0] = EEPROM.read(0);
+  alarm_time[1] = EEPROM.read(1);
+  alarm_flag = EEPROM.read(2);
+  alarm_time[0] = constrain(alarm_time[0], 0, 23);
+  alarm_time[1] = constrain(alarm_time[1], 0, 59);
   
   writeBigString("HELLO!", 0, 0);
   tone(BUZZER_PIN, 2349 , 100);
@@ -151,11 +158,14 @@ void setup()
 
 
 void loop(){
+  // alarm
   if (alarm_flag && second() == 0 && alarm_time[1] == minute() && alarm_time[0] == hour()) {
     alarm();
     alarm_flag = false;
+    EEPROM.update(2, alarm_flag);
   }
 
+  // hour signal
 #if HOUR_SIGNAL == 1
   if (second() == 0 && minute() == 0) {
     tone(BUZZER_PIN, 1000);
@@ -167,22 +177,25 @@ void loop(){
   }
 #endif
 
+  // update screen every minute  
   if(minute() != previous_min){
     screen = TIME_SCREEN;
     update_flag = true;
     previous_min = minute();
   }
 
+  // screen updater
   if(update_flag or screen != previous_screen){
     update_flag = false;
     previous_screen = screen;
     show_screen();
   }
   
+  // backlight
 #if SMART_BACKLIGHT == 1
   set_lcd_led();
 #endif
-
+  
   button_listen();
 }
 
@@ -251,6 +264,7 @@ void button_listen() {
     delay(500);
     if (alarm_flag) {
       alarm_flag = false;
+      EEPROM.update(2, alarm_flag);
     } else {
       set_alarm();
     }
@@ -346,8 +360,6 @@ void mark_time(int marked , int arr[]) {
 
 void set_alarm() {
   /* set the alarm for the selected time */
-  alarm_flag = true;
-  update_flag = true;
   byte marked = 0; // time interval, which is now changing
 
   lcd.clear();
@@ -393,6 +405,11 @@ void set_alarm() {
     }
 
   }
+  alarm_flag = true;
+  update_flag = true;
+  EEPROM.update(0, alarm_time[0]);
+  EEPROM.update(1, alarm_time[1]);
+  EEPROM.update(2, alarm_flag);
   lcd.clear();
 }
 
