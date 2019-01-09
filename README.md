@@ -40,4 +40,4 @@
 - Resistor (10 kΩ)
 
 ## Schemes
-![scheme](../master/schemes/sheme_bb.jpg)
+![scheme](https://github.com/musicfreakt/arduinoclock/blob/master/schemes/scheme_bb.jpg)
