@@ -6,6 +6,10 @@
 #include <LiquidCrystal_I2C.h>
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
+//---------------settings---------------
+#define HOUR_SIGNAL 1 // 0 - off, 1 - on
+#define SMART_BACKLIGHT 1 // 0 - off, 1 - on
+
 //---------------pins---------------
 #define PHOTORESISTOR_PIN 14
 #define BUZZER_PIN  6
@@ -17,9 +21,9 @@ LiquidCrystal_I2C lcd(0x27, 16, 2);
 //---------------constants---------------
 const byte NUM_TIMES = 5;
 const byte ANUM_TIMES = 2;
-const byte DEFAULT_TIME[NUM_TIMES] = {2019, 0, 0, 0, 0};
-const byte MAX_TIME[NUM_TIMES] = {3000, 12, 31, 23, 59};
 const byte NUM_SCREENS = 3;
+const short DEFAULT_TIME[NUM_TIMES] = {2019, 1, 1, 0, 0};
+const short MAX_TIME[NUM_TIMES] = {3000, 12, 31, 23, 59};
 //---------------lcd custom chars---------------
 
 // Eight programmable character definitions
@@ -152,6 +156,7 @@ void loop(){
     alarm_flag = false;
   }
 
+#if HOUR_SIGNAL == 1
   if (second() == 0 && minute() == 0) {
     tone(BUZZER_PIN, 1000);
     delay(200);
@@ -160,7 +165,8 @@ void loop(){
     delay(200);
     noTone(BUZZER_PIN);
   }
-  
+#endif
+
   if(minute() != previous_min){
     screen = TIME_SCREEN;
     update_flag = true;
@@ -172,7 +178,11 @@ void loop(){
     previous_screen = screen;
     show_screen();
   }
+  
+#if SMART_BACKLIGHT == 1
   set_lcd_led();
+#endif
+
   button_listen();
 }
 
@@ -304,26 +314,25 @@ void mark_time(int marked , int arr[]) {
   /* display on the screen of the time interval that was selected
      and its value
   */
-
+  lcd.setCursor(0, 0);
   switch (marked) {
     case YEAR:
-      lcd.setCursor(0, 0);
       lcd.print("set year");
+      lcd.print("        ");
       break;
     case MONTH:
-      lcd.setCursor(0, 0);
       lcd.print("set month");
+      lcd.print("         ");
       break;
     case DAY:
-      lcd.setCursor(0, 0);
       lcd.print("set day");
+      lcd.print("       ");
       break;
     case HOUR:
-      lcd.setCursor(0, 0);
       lcd.print("set hour");
+      lcd.print("        ");
       break;
     case MINUTE:
-      lcd.setCursor(0, 0);
       lcd.print("set minute");
       break;
   }
@@ -413,6 +422,8 @@ void get_time(){
   setTime(Hour, Min, Sec, Day, month_index, Year);
 }
 
+#if SMART_BACKLIGHT == 1 
+
 void set_lcd_led() {
   /* set the backlight brightness */
   int bright = map(analogRead(PHOTORESISTOR_PIN), 320, 1024, 0, 5); // translate the obtained values from the photoresistor into the range from 0 to 5
@@ -422,6 +433,7 @@ void set_lcd_led() {
   analogWrite(LCD_LED_PIN, bright * 51); // set the display brightness
 }
 
+#endif
 
 int writeBigChar(char ch, int x, int y) {
   /* write chars on lcd with big font */
