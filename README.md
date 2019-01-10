@@ -23,8 +23,10 @@
 
 ## Code settings
 ```c++
-#define HOUR_SIGNAL 1 // 0 - off, 1 - on
-#define SMART_BACKLIGHT 1 // 0 - off, 1 - on
+#define HOUR_SIGNAL 1 // (0 - off, 1 - on)
+#define SMART_BACKLIGHT 1 // (0 - off, 1 - on)
+#define TIME_SEPARATOR 0 //  time separator type (0 - none, 1 - dot, 2 - colon)
+#define GET_TIME 1 // get the time of firmware download from pc (0 - off, 1 - on)
 ```
 
 ## Folders

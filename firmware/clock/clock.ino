@@ -8,8 +8,10 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 //---------------settings---------------
-#define HOUR_SIGNAL 1 // 0 - off, 1 - on
-#define SMART_BACKLIGHT 1 // 0 - off, 1 - on
+#define HOUR_SIGNAL 1 // (0 - off, 1 - on)
+#define SMART_BACKLIGHT 1 // (0 - off, 1 - on)
+#define TIME_SEPARATOR 0 //  time separator type (0 - none, 1 - dot, 2 - colon)
+#define GET_TIME 1 // get the time of firmware download from pc (0 - off, 1 - on)
 
 //---------------pins---------------
 #define PHOTORESISTOR_PIN 14
@@ -126,7 +128,7 @@ int alarm_time[NUM_TIMES]; // alarm time
 
 void setup()
 {
-  
+
   pinMode(UP_BTN, INPUT_PULLUP);
   pinMode(DOWN_BTN, INPUT_PULLUP);
   pinMode(SET_BTN, INPUT_PULLUP);
@@ -141,15 +143,15 @@ void setup()
     lcd.createChar(i+1, custom[i]); // create custom chars
   }
   lcd.backlight();
-  
-  get_time(); // get the time and date of firmware download
-
+  #if GET_TIME == 1
+    get_time(); // get the time and date of firmware download
+  #endif
   alarm_time[0] = EEPROM.read(0);
   alarm_time[1] = EEPROM.read(1);
   alarm_flag = EEPROM.read(2);
   alarm_time[0] = constrain(alarm_time[0], 0, 23);
   alarm_time[1] = constrain(alarm_time[1], 0, 59);
-  
+
   writeBigString("HELLO!", 0, 0);
   tone(BUZZER_PIN, 2349 , 100);
   delay(1000);
@@ -177,7 +179,7 @@ void loop(){
   }
 #endif
 
-  // update screen every minute  
+  // update screen every minute
   if(minute() != previous_min){
     screen = TIME_SCREEN;
     update_flag = true;
@@ -190,12 +192,12 @@ void loop(){
     previous_screen = screen;
     show_screen();
   }
-  
+
   // backlight
 #if SMART_BACKLIGHT == 1
   set_lcd_led();
 #endif
-  
+
   button_listen();
 }
 
@@ -218,8 +220,18 @@ void time_screen() {
   char hour_str[2], min_str[2];
   sprintf(hour_str, "%02d", hour());
   sprintf(min_str, "%02d", minute());
-  writeBigString(hour_str, 1, 0);
-  writeBigString(min_str, 9, 0);
+  # if TIME_SEPARATOR == 0
+    writeBigString(hour_str, 1, 0);
+    writeBigString(min_str, 9, 0);
+  #elif TIME_SEPARATOR == 1
+    writeBigString(hour_str, 0, 0);
+    writeBigString(".", 7, 0);
+    writeBigString(min_str, 9, 0);
+  #elif TIME_SEPARATOR == 2
+    writeBigString(hour_str, 0, 0);
+    writeBigString(":", 7, 0);
+    writeBigString(min_str, 9, 0);
+  #endif
 }
 
 void date_screen(){
@@ -237,8 +249,18 @@ void alarm_screen(){
     char hour_str[2], min_str[2];
     sprintf(hour_str, "%02d", alarm_time[0]);
     sprintf(min_str, "%02d", alarm_time[1]);
-    writeBigString(hour_str, 1, 0);
-    writeBigString(min_str, 9, 0);
+    # if TIME_SEPARATOR == 0
+      writeBigString(hour_str, 1, 0);
+      writeBigString(min_str, 9, 0);
+    #elif TIME_SEPARATOR == 1
+      writeBigString(hour_str, 0, 0);
+      writeBigString(".", 7, 0);
+      writeBigString(min_str, 9, 0);
+    #elif TIME_SEPARATOR == 2
+      writeBigString(hour_str, 0, 0);
+      writeBigString(":", 7, 0);
+      writeBigString(min_str, 9, 0);
+    #endif
   }else{
     writeBigString("OFF", 4, 0);
   }
@@ -422,6 +444,7 @@ void alarm() {
   noTone(BUZZER_PIN);
 }
 
+#if GET_TIME == 1
 
 void get_time(){
   /* get the time of firmware download and set it */
@@ -429,7 +452,7 @@ void get_time(){
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
   };
-  char Month[4];
+  char Month[3];
   short Hour, Min, Sec, Day, Year, month_index;
   sscanf(__TIME__, "%d:%d:%d", &Hour, &Min, &Sec);
   sscanf(__DATE__, "%s %d %d", Month, &Day, &Year);
@@ -439,7 +462,9 @@ void get_time(){
   setTime(Hour, Min, Sec, Day, month_index, Year);
 }
 
-#if SMART_BACKLIGHT == 1 
+#endif
+
+#if SMART_BACKLIGHT == 1
 
 void set_lcd_led() {
   /* set the backlight brightness */
